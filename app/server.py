@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from .config import AppConfig, config_to_dict, load_config, load_config_dict
 from .pipeline import run_pipeline
 from .validation import build_validation_report
+from .training import run_training_experiment
 
 
 def _setup_logging() -> None:
@@ -277,6 +278,7 @@ def index() -> str:
       <button class="btn-primary" id="runBtn">Create Job</button>
       <button class="btn-secondary" id="checkBtn">Check Job</button>
       <button class="btn-secondary" id="valBtn">Validate Job</button>
+      <button class="btn-secondary" id="trainBtn">Train Eval</button>
       <button class="btn-secondary" id="artBtn">Load Artifacts</button>
     </section>
 
@@ -292,6 +294,7 @@ def index() -> str:
     const runBtn = document.getElementById("runBtn");
     const checkBtn = document.getElementById("checkBtn");
     const valBtn = document.getElementById("valBtn");
+    const trainBtn = document.getElementById("trainBtn");
     const artBtn = document.getElementById("artBtn");
     const artifactsEl = document.getElementById("artifacts");
 
@@ -377,6 +380,28 @@ def index() -> str:
       const invalid = payload.summary ? payload.summary.invalid_samples : 0;
       const kind = invalid > 0 ? "err" : "ok";
       setStatus(`Validation complete for ${jobId}. invalid=${invalid}`, kind);
+    }
+
+    async function trainEvalJob(jobId) {
+      if (!jobId) {
+        setStatus("Enter a job_id first.", "err");
+        return;
+      }
+      const res = await fetch(`/v1/jobs/${jobId}/train_eval`, { headers: apiHeadersOnly() });
+      const text = await res.text();
+      let payload = {};
+      try { payload = JSON.parse(text); } catch { payload = { raw: text }; }
+
+      if (!res.ok) {
+        setStatus(`Train/eval failed (${res.status}).`, "err");
+        outputEl.textContent = JSON.stringify(payload, null, 2);
+        return;
+      }
+
+      outputEl.textContent = JSON.stringify(payload, null, 2);
+      const lift = payload.lift ? payload.lift.dice : 0;
+      const kind = lift >= 0 ? "ok" : "err";
+      setStatus(`Train/eval complete for ${jobId}. Dice lift=${lift?.toFixed ? lift.toFixed(4) : lift}`, kind);
     }
     async function fetchJob(jobId, silent = false) {
       if (!jobId) {
@@ -470,7 +495,10 @@ def index() -> str:
       const jobId = document.getElementById("jobId").value.trim();
       try { await validateJob(jobId); } catch (e) { setStatus(`Request failed: ${e.message}`, "err"); }
     });
-    artBtn.addEventListener("click", async () => {
+    trainBtn.addEventListener("click", async () => {
+      const jobId = document.getElementById("jobId").value.trim();
+      try { await trainEvalJob(jobId); } catch (e) { setStatus(`Request failed: ${e.message}`, "err"); }
+    });    artBtn.addEventListener("click", async () => {
       const jobId = document.getElementById("jobId").value.trim();
       try { await loadArtifacts(jobId); } catch (e) { setStatus(`Request failed: ${e.message}`, "err"); }
     });
@@ -631,3 +659,16 @@ def download_artifact(job_id: str, bucket: str, filename: str, x_api_key: Option
 
 
 
+
+
+
+
+
+
+
+@app.get("/v1/jobs/{job_id}/train_eval")
+def train_eval_job(job_id: str, x_api_key: Optional[str] = Header(default=None)) -> Dict[str, Any]:
+    _assert_auth(x_api_key)
+
+    root = _job_output_root(job_id)
+    return run_training_experiment(job_id=job_id, output_root=root)

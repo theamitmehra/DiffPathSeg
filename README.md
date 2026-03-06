@@ -10,6 +10,7 @@ This project ships as a deployable API + browser UI.
   - `POST /v1/jobs`
   - `GET /v1/jobs/{job_id}`
   - `GET /v1/jobs/{job_id}/validation`
+  - `GET /v1/jobs/{job_id}/train_eval`
   - `GET /v1/jobs/{job_id}/artifacts`
   - `GET /v1/jobs/{job_id}/artifacts/{bucket}/{filename}`
 - Background job execution with bounded concurrency.
@@ -37,7 +38,7 @@ Open UI:
 
 ## Validation and Artifacts
 
-After a job completes, click `Validate Job` to generate a QC report, then `Load Artifacts` to browse files.
+After a job completes, click `Validate Job` for QC, `Train Eval` for baseline-vs-augmented Dice/IoU, then `Load Artifacts` to browse files.
 The UI shows clickable links for generated `.png` previews (and `.pgm` originals) from:
 
 - `synthetic`
@@ -74,3 +75,4 @@ pip install torch numpy pillow diffusers transformers accelerate safetensors
 ```
 
 Use `configs/ldm_torch.example.json` or send `config_override` in the UI/API.
+
