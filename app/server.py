@@ -567,6 +567,12 @@ def train_eval_job(job_id: str, x_api_key: Optional[str] = Header(default=None))
     return out
 
 
+
+@app.get("/v1/experiments")
+def get_experiments(x_api_key: Optional[str] = Header(default=None), limit: int = 20) -> Dict[str, Any]:
+    _assert_auth(x_api_key)
+    return summarize_experiments(limit=limit)
+
 @app.get("/v1/jobs/{job_id}/artifacts")
 def list_artifacts(job_id: str, x_api_key: Optional[str] = Header(default=None)) -> Dict[str, Any]:
     _assert_auth(x_api_key)
