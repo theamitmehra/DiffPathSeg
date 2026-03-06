@@ -13,6 +13,7 @@ This project ships as a deployable API + browser UI.
   - `GET /v1/jobs/{job_id}/train_eval`
   - `GET /v1/jobs/{job_id}/artifacts`
   - `GET /v1/jobs/{job_id}/artifacts/{bucket}/{filename}`
+  - `GET /v1/jobs/{job_id}/artifacts.zip`
 - Background job execution with bounded concurrency.
 - Per-job isolated output directories (`outputs/<job_id>/...`).
 - Optional API key protection (`APP_API_KEY` via `x-api-key`).
@@ -44,6 +45,7 @@ After a job completes:
 - `Validate Job`: QC report
 - `Train Eval`: baseline-vs-augmented Dice/IoU
 - `Load Artifacts`: image links (`.png` and `.pgm`)
+- `Download ZIP`: one-click export of all local artifacts
 
 ## Durable Storage (S3)
 

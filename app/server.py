@@ -5,6 +5,7 @@ import threading
 import time
 import traceback
 import uuid
+import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -12,6 +13,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
+from starlette.background import BackgroundTask
 
 from .config import AppConfig, config_to_dict, load_config, load_config_dict
 from .pipeline import run_pipeline
@@ -94,7 +96,7 @@ def _deep_merge(base: Dict[str, Any], patch: Dict[str, Any]) -> Dict[str, Any]:
     return merged
 
 
-app = FastAPI(title="DiffPathSeg API", version="1.4.0")
+app = FastAPI(title="DiffPathSeg API", version="1.5.0")
 jobs = JobStore()
 _max_concurrent_jobs = max(1, int(os.getenv("MAX_CONCURRENT_JOBS", "2")))
 _worker_semaphore = threading.BoundedSemaphore(_max_concurrent_jobs)
@@ -174,6 +176,7 @@ def index() -> str:
       <button class="btn-secondary" id="valBtn">Validate Job</button>
       <button class="btn-secondary" id="trainBtn">Train Eval</button>
       <button class="btn-secondary" id="artBtn">Load Artifacts</button>
+      <button class="btn-secondary" id="zipBtn">Download ZIP</button>
     </section>
 
     <p class="status" id="status">Ready.</p>
@@ -190,6 +193,7 @@ def index() -> str:
     const valBtn = document.getElementById("valBtn");
     const trainBtn = document.getElementById("trainBtn");
     const artBtn = document.getElementById("artBtn");
+    const zipBtn = document.getElementById("zipBtn");
     const artifactsEl = document.getElementById("artifacts");
 
     function setStatus(msg, kind = "") { statusEl.textContent = msg; statusEl.className = kind ? `status ${kind}` : "status"; }
@@ -241,6 +245,27 @@ def index() -> str:
       outputEl.textContent = JSON.stringify(payload, null, 2);
       const lift = payload.lift ? payload.lift.dice : 0;
       setStatus(`Train/eval complete for ${jobId}. Dice lift=${lift.toFixed ? lift.toFixed(4) : lift}`, lift >= 0 ? "ok" : "err");
+    }
+
+    async function downloadZip(jobId) {
+      if (!jobId) { setStatus("Enter a job_id first.", "err"); return; }
+      const res = await fetch(`/v1/jobs/${jobId}/artifacts.zip`, { headers: apiHeadersOnly() });
+      if (!res.ok) {
+        const text = await res.text();
+        setStatus(`ZIP download failed (${res.status}).`, "err");
+        outputEl.textContent = text;
+        return;
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${jobId}_artifacts.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      setStatus(`ZIP downloaded for ${jobId}.`, "ok");
     }
 
     async function fetchJob(jobId, silent = false) {
@@ -299,6 +324,7 @@ def index() -> str:
     valBtn.addEventListener("click", async () => { const jobId = document.getElementById("jobId").value.trim(); try { await validateJob(jobId); } catch (e) { setStatus(`Request failed: ${e.message}`, "err"); } });
     trainBtn.addEventListener("click", async () => { const jobId = document.getElementById("jobId").value.trim(); try { await trainEvalJob(jobId); } catch (e) { setStatus(`Request failed: ${e.message}`, "err"); } });
     artBtn.addEventListener("click", async () => { const jobId = document.getElementById("jobId").value.trim(); try { await loadArtifacts(jobId); } catch (e) { setStatus(`Request failed: ${e.message}`, "err"); } });
+    zipBtn.addEventListener("click", async () => { const jobId = document.getElementById("jobId").value.trim(); try { await downloadZip(jobId); } catch (e) { setStatus(`Request failed: ${e.message}`, "err"); } });
 
     checkHealth();
   </script>
@@ -346,13 +372,13 @@ def _run_job(job_id: str, cfg: AppConfig) -> None:
         except ArtifactPersistenceError as exc:
             metrics["artifact_store"] = "local"
             metrics["artifact_persistence_error"] = str(exc)
-        except Exception as exc:  # pragma: no cover
+        except Exception as exc:
             metrics["artifact_store"] = "local"
             metrics["artifact_persistence_error"] = f"unexpected persistence error: {exc}"
 
         jobs.update(job_id, status="completed", finished_at=time.time(), metrics=metrics)
         logger.info("job completed", extra={"job_id": job_id})
-    except Exception as exc:  # pragma: no cover
+    except Exception as exc:
         err = f"{exc}\n{traceback.format_exc()}"
         jobs.update(job_id, status="failed", finished_at=time.time(), error=err)
         logger.exception("job failed", extra={"job_id": job_id})
@@ -493,3 +519,29 @@ def download_artifact(job_id: str, bucket: str, filename: str, x_api_key: Option
 
     media_type = "image/png" if path.suffix.lower() == ".png" else "image/x-portable-graymap"
     return FileResponse(path=str(path), filename=filename, media_type=media_type)
+
+
+@app.get("/v1/jobs/{job_id}/artifacts.zip")
+def download_artifacts_zip(job_id: str, x_api_key: Optional[str] = Header(default=None)) -> FileResponse:
+    _assert_auth(x_api_key)
+    root = _job_output_root(job_id)
+
+    files = _local_artifact_files(job_id=job_id, root=root)
+    if not files:
+        raise HTTPException(status_code=404, detail="no local artifacts found")
+
+    zip_path = root / f"{job_id}_artifacts.zip"
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for item in files:
+            kind = str(item["kind"])
+            name = str(item["name"])
+            src = root / kind / name
+            if src.exists():
+                zf.write(src, arcname=f"{kind}/{name}")
+
+    return FileResponse(
+        path=str(zip_path),
+        filename=f"{job_id}_artifacts.zip",
+        media_type="application/zip",
+        background=BackgroundTask(lambda: zip_path.exists() and zip_path.unlink()),
+    )
