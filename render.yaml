@@ -1,0 +1,14 @@
+﻿services:
+  - type: web
+    name: diffpathseg-api
+    runtime: docker
+    plan: free
+    branch: main
+    healthCheckPath: /healthz
+    envVars:
+      - key: LOG_LEVEL
+        value: INFO
+      - key: APP_DEFAULT_CONFIG
+        value: configs/default.json
+      - key: MAX_CONCURRENT_JOBS
+        value: "1"

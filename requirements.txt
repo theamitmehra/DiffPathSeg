@@ -1,3 +1,11 @@
-﻿# No required external dependencies.
-# Optional: install torch and numpy if you want to replace
-# the lightweight validator with deep models.
+﻿fastapi==0.115.8
+uvicorn[standard]==0.34.0
+
+# Optional for LDM generator and torch QC backend
+# torch>=2.2
+# numpy>=1.26
+# pillow>=10.0
+# diffusers>=0.32
+# transformers>=4.47
+# accelerate>=1.2
+# safetensors>=0.4

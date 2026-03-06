@@ -1,6 +1,6 @@
-﻿from dataclasses import dataclass
+﻿from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import List
+from typing import Any, Dict, List
 import json
 
 
@@ -51,10 +51,7 @@ class AppConfig:
     text_prompts: List[str]
 
 
-def load_config(path: str) -> AppConfig:
-    with open(path, "r", encoding="utf-8-sig") as f:
-        raw = json.load(f)
-
+def _build_config(raw: Dict[str, Any]) -> AppConfig:
     thresholds = QualityThresholds(**raw["quality_thresholds"])
     longitudinal = LongitudinalConfig(**raw["longitudinal"])
 
@@ -73,7 +70,7 @@ def load_config(path: str) -> AppConfig:
         latent_size=int(qc_raw.get("latent_size", 32)),
     )
 
-    return AppConfig(
+    cfg = AppConfig(
         seed=int(raw["seed"]),
         backend=str(raw["backend"]),
         output_dir=Path(raw["output_dir"]),
@@ -88,3 +85,30 @@ def load_config(path: str) -> AppConfig:
         qc=qc,
         text_prompts=list(raw["text_prompts"]),
     )
+
+    if cfg.image_size <= 0:
+        raise ValueError("image_size must be greater than zero")
+    if cfg.num_generate_attempts <= 0:
+        raise ValueError("num_generate_attempts must be greater than zero")
+    if cfg.max_curated_samples <= 0:
+        raise ValueError("max_curated_samples must be greater than zero")
+    if not cfg.text_prompts:
+        raise ValueError("text_prompts must not be empty")
+
+    return cfg
+
+
+def load_config(path: str) -> AppConfig:
+    with open(path, "r", encoding="utf-8-sig") as f:
+        raw = json.load(f)
+    return _build_config(raw)
+
+
+def load_config_dict(raw: Dict[str, Any]) -> AppConfig:
+    return _build_config(raw)
+
+
+def config_to_dict(cfg: AppConfig) -> Dict[str, Any]:
+    out = asdict(cfg)
+    out["output_dir"] = str(cfg.output_dir)
+    return out

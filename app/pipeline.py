@@ -1,4 +1,5 @@
-﻿from typing import Dict, List
+﻿from pathlib import Path
+from typing import Dict, List, Optional
 
 from .config import AppConfig
 from .dataset import build_ellipse_mask, generate_normal_images, sample_longitudinal_specs
@@ -7,8 +8,8 @@ from .qc import QualityValidator
 from .utils import ensure_dirs, save_binary_mask, save_grayscale_image, write_json
 
 
-def run_pipeline(cfg: AppConfig) -> Dict[str, float]:
-    out_root = cfg.output_dir
+def run_pipeline(cfg: AppConfig, run_id: Optional[str] = None) -> Dict[str, float | str]:
+    out_root = cfg.output_dir / run_id if run_id else cfg.output_dir
     synthetic_dir = out_root / "synthetic"
     curated_dir = out_root / "curated"
     ensure_dirs(out_root, synthetic_dir, curated_dir)
@@ -60,13 +61,14 @@ def run_pipeline(cfg: AppConfig) -> Dict[str, float]:
             accepted_count += 1
 
     mean_iou = sum(ious) / len(ious) if ious else 0.0
-    metrics = {
+    metrics: Dict[str, float | str] = {
         "attempts": attempts,
         "accepted": accepted_count,
         "acceptance_rate": (accepted_count / attempts) if attempts else 0.0,
         "mean_iou": mean_iou,
         "generator_backend": cfg.backend,
         "qc_backend": cfg.qc.backend,
+        "output_dir": str(out_root),
     }
     write_json(metrics, out_root / "metrics.json")
     return metrics
