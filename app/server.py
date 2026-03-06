@@ -6,10 +6,11 @@ import time
 import traceback
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, Header, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
 from .config import AppConfig, config_to_dict, load_config, load_config_dict
@@ -93,7 +94,7 @@ def _deep_merge(base: Dict[str, Any], patch: Dict[str, Any]) -> Dict[str, Any]:
     return merged
 
 
-app = FastAPI(title="DiffPathSeg API", version="1.1.0")
+app = FastAPI(title="DiffPathSeg API", version="1.2.0")
 jobs = JobStore()
 _max_concurrent_jobs = max(1, int(os.getenv("MAX_CONCURRENT_JOBS", "2")))
 _worker_semaphore = threading.BoundedSemaphore(_max_concurrent_jobs)
@@ -117,8 +118,6 @@ def index() -> str:
       --text: #e2e8f0;
       --muted: #94a3b8;
       --accent: #22d3ee;
-      --accent-2: #10b981;
-      --danger: #ef4444;
     }
     * { box-sizing: border-box; }
     body {
@@ -134,7 +133,7 @@ def index() -> str:
       padding: 20px;
     }
     .panel {
-      width: min(920px, 100%);
+      width: min(940px, 100%);
       background: linear-gradient(180deg, rgba(11,18,32,0.92), rgba(11,18,32,0.82));
       border: 1px solid var(--card-border);
       border-radius: 18px;
@@ -149,25 +148,15 @@ def index() -> str:
       align-items: baseline;
       gap: 12px;
     }
-    .title {
-      margin: 0;
-      font-size: 1.45rem;
-      letter-spacing: 0.02em;
-    }
-    .sub {
-      margin: 0;
-      color: var(--muted);
-      font-size: 0.92rem;
-    }
+    .title { margin: 0; font-size: 1.45rem; }
+    .sub { margin: 0; color: var(--muted); font-size: 0.92rem; }
     .grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 14px;
       padding: 20px 24px;
     }
-    @media (max-width: 780px) {
-      .grid { grid-template-columns: 1fr; }
-    }
+    @media (max-width: 780px) { .grid { grid-template-columns: 1fr; } }
     .group { display: flex; flex-direction: column; gap: 6px; }
     label {
       font-size: 0.82rem;
@@ -185,7 +174,7 @@ def index() -> str:
       font-size: 0.95rem;
     }
     textarea {
-      min-height: 130px;
+      min-height: 120px;
       resize: vertical;
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     }
@@ -202,13 +191,10 @@ def index() -> str:
       font-size: 0.95rem;
       font-weight: 600;
       cursor: pointer;
-      transition: transform 120ms ease, box-shadow 120ms ease;
     }
-    button:hover { transform: translateY(-1px); }
     .btn-primary {
       background: linear-gradient(90deg, var(--accent), #0ea5e9);
       color: #001018;
-      box-shadow: 0 8px 20px rgba(34,211,238,0.25);
     }
     .btn-secondary {
       background: #1e293b;
@@ -227,18 +213,33 @@ def index() -> str:
     .status.ok { border-color: #14532d; color: #bbf7d0; }
     .status.err { border-color: #7f1d1d; color: #fecaca; }
     .output {
-      margin: 0 24px 24px;
+      margin: 0 24px 14px;
       border-radius: 12px;
       border: 1px solid #334155;
       background: #020817;
       padding: 14px;
       overflow: auto;
-      min-height: 150px;
+      min-height: 130px;
       white-space: pre-wrap;
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-size: 0.86rem;
       line-height: 1.45;
       color: #cbd5e1;
+    }
+    .artifacts {
+      margin: 0 24px 24px;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      background: #020817;
+      padding: 14px;
+      min-height: 80px;
+    }
+    .artifacts a {
+      color: #7dd3fc;
+      text-decoration: none;
+      margin-right: 12px;
+      display: inline-block;
+      margin-bottom: 8px;
     }
   </style>
 </head>
@@ -274,10 +275,12 @@ def index() -> str:
     <section class="actions">
       <button class="btn-primary" id="runBtn">Create Job</button>
       <button class="btn-secondary" id="checkBtn">Check Job</button>
+      <button class="btn-secondary" id="artBtn">Load Artifacts</button>
     </section>
 
     <p class="status" id="status">Ready.</p>
     <pre class="output" id="output">No job yet.</pre>
+    <div class="artifacts" id="artifacts">Artifacts will appear here after completion.</div>
   </main>
 
   <script>
@@ -286,6 +289,8 @@ def index() -> str:
     const healthEl = document.getElementById("health");
     const runBtn = document.getElementById("runBtn");
     const checkBtn = document.getElementById("checkBtn");
+    const artBtn = document.getElementById("artBtn");
+    const artifactsEl = document.getElementById("artifacts");
 
     function setStatus(msg, kind = "") {
       statusEl.textContent = msg;
@@ -294,6 +299,13 @@ def index() -> str:
 
     function getHeaders() {
       const headers = { "Content-Type": "application/json" };
+      const apiKey = document.getElementById("apiKey").value.trim();
+      if (apiKey) headers["x-api-key"] = apiKey;
+      return headers;
+    }
+
+    function apiHeadersOnly() {
+      const headers = {};
       const apiKey = document.getElementById("apiKey").value.trim();
       if (apiKey) headers["x-api-key"] = apiKey;
       return headers;
@@ -310,13 +322,42 @@ def index() -> str:
       }
     }
 
+    function renderArtifacts(payload) {
+      const files = payload.files || [];
+      if (!files.length) {
+        artifactsEl.textContent = "No artifacts found for this job yet.";
+        return;
+      }
+      const html = files.map((f) => `<a href="${f.url}" target="_blank" rel="noopener">${f.kind}: ${f.name}</a>`).join(" ");
+      artifactsEl.innerHTML = html;
+    }
+
+    async function loadArtifacts(jobId) {
+      if (!jobId) {
+        setStatus("Enter a job_id first.", "err");
+        return;
+      }
+      const res = await fetch(`/v1/jobs/${jobId}/artifacts`, { headers: apiHeadersOnly() });
+      const text = await res.text();
+      let payload = {};
+      try { payload = JSON.parse(text); } catch { payload = { raw: text }; }
+
+      if (!res.ok) {
+        setStatus(`Artifacts fetch failed (${res.status}).`, "err");
+        artifactsEl.textContent = JSON.stringify(payload, null, 2);
+        return;
+      }
+      renderArtifacts(payload);
+      setStatus(`Artifacts loaded for ${jobId}.`, "ok");
+    }
+
     async function fetchJob(jobId, silent = false) {
       if (!jobId) {
         if (!silent) setStatus("Enter a job_id first.", "err");
         return;
       }
 
-      const res = await fetch(`/v1/jobs/${jobId}`, { headers: getHeaders() });
+      const res = await fetch(`/v1/jobs/${jobId}`, { headers: apiHeadersOnly() });
       const text = await res.text();
       let payload = {};
       try { payload = JSON.parse(text); } catch { payload = { raw: text }; }
@@ -329,12 +370,16 @@ def index() -> str:
 
       outputEl.textContent = JSON.stringify(payload, null, 2);
       setStatus(`Job ${payload.job_id} is ${payload.status}.`, payload.status === "failed" ? "err" : "ok");
+      if (payload.status === "completed") {
+        await loadArtifacts(payload.job_id);
+      }
       return payload;
     }
 
     async function createJob() {
       runBtn.disabled = true;
       setStatus("Creating job...", "");
+      artifactsEl.textContent = "Waiting for new job artifacts...";
 
       let override = {};
       const rawOverride = document.getElementById("override").value.trim();
@@ -392,11 +437,11 @@ def index() -> str:
     runBtn.addEventListener("click", createJob);
     checkBtn.addEventListener("click", async () => {
       const jobId = document.getElementById("jobId").value.trim();
-      try {
-        await fetchJob(jobId);
-      } catch (e) {
-        setStatus(`Request failed: ${e.message}`, "err");
-      }
+      try { await fetchJob(jobId); } catch (e) { setStatus(`Request failed: ${e.message}`, "err"); }
+    });
+    artBtn.addEventListener("click", async () => {
+      const jobId = document.getElementById("jobId").value.trim();
+      try { await loadArtifacts(jobId); } catch (e) { setStatus(`Request failed: ${e.message}`, "err"); }
     });
 
     checkHealth();
@@ -444,6 +489,15 @@ def _run_job(job_id: str, cfg: AppConfig) -> None:
         _worker_semaphore.release()
 
 
+def _job_output_root(job_id: str) -> Path:
+    job = jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="job not found")
+    if not job.metrics or not job.metrics.get("output_dir"):
+        raise HTTPException(status_code=409, detail="job artifacts not ready")
+    return Path(str(job.metrics["output_dir"]))
+
+
 @app.post("/v1/jobs", response_model=JobResponse)
 def create_job(payload: JobRequest, x_api_key: Optional[str] = Header(default=None)) -> JobResponse:
     _assert_auth(x_api_key)
@@ -478,3 +532,46 @@ def get_job(job_id: str, x_api_key: Optional[str] = Header(default=None)) -> Job
         metrics=job.metrics,
         error=job.error,
     )
+
+
+@app.get("/v1/jobs/{job_id}/artifacts")
+def list_artifacts(job_id: str, x_api_key: Optional[str] = Header(default=None)) -> Dict[str, Any]:
+    _assert_auth(x_api_key)
+
+    root = _job_output_root(job_id)
+    files: List[Dict[str, Any]] = []
+    for kind in ["synthetic", "curated"]:
+        d = root / kind
+        if not d.exists():
+            continue
+        for p in sorted(d.glob("*.pgm")):
+            files.append(
+                {
+                    "kind": kind,
+                    "name": p.name,
+                    "size_bytes": p.stat().st_size,
+                    "url": f"/v1/jobs/{job_id}/artifacts/{kind}/{p.name}",
+                }
+            )
+
+    return {"job_id": job_id, "count": len(files), "files": files}
+
+
+@app.get("/v1/jobs/{job_id}/artifacts/{bucket}/{filename}")
+def download_artifact(job_id: str, bucket: str, filename: str, x_api_key: Optional[str] = Header(default=None)) -> FileResponse:
+    _assert_auth(x_api_key)
+
+    if bucket not in {"synthetic", "curated"}:
+        raise HTTPException(status_code=400, detail="invalid artifact bucket")
+    if "/" in filename or "\\" in filename or ".." in filename:
+        raise HTTPException(status_code=400, detail="invalid filename")
+
+    root = _job_output_root(job_id)
+    path = (root / bucket / filename).resolve()
+    expected_parent = (root / bucket).resolve()
+    if expected_parent not in path.parents:
+        raise HTTPException(status_code=400, detail="invalid artifact path")
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="artifact not found")
+
+    return FileResponse(path=str(path), filename=filename, media_type="image/x-portable-graymap")

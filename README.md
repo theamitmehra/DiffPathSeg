@@ -9,6 +9,8 @@ This project ships as a deployable API + browser UI.
   - `GET /healthz`
   - `POST /v1/jobs`
   - `GET /v1/jobs/{job_id}`
+  - `GET /v1/jobs/{job_id}/artifacts`
+  - `GET /v1/jobs/{job_id}/artifacts/{bucket}/{filename}`
 - Background job execution with bounded concurrency.
 - Per-job isolated output directories (`outputs/<job_id>/...`).
 - Optional API key protection (`APP_API_KEY` via `x-api-key`).
@@ -32,9 +34,13 @@ Open UI:
 
 - `http://localhost:8000/`
 
-Health endpoint:
+## Artifacts in UI
 
-- `http://localhost:8000/healthz`
+After a job completes, click `Load Artifacts` (or wait for auto-load).
+The UI will show clickable links for generated `.pgm` files from:
+
+- `synthetic`
+- `curated`
 
 ## Free Deployment (Render)
 
