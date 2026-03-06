@@ -113,14 +113,14 @@ def index() -> str:
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>DiffPathSeg Console</title>
   <style>
-    :root { --bg-1:#0f172a; --bg-2:#1e293b; --card-border:#1f2a44; --text:#e2e8f0; --muted:#94a3b8; --accent:#22d3ee; }
+    :root { --bg-1:#0f172a; --bg-2:#1e293b; --card-border:#1f2a44; --text:#e2e8f0; --muted:#94a3b8; --accent:#22d3ee; --card:#020817; }
     * { box-sizing: border-box; }
     body {
       margin: 0; min-height: 100vh; font-family: "IBM Plex Sans","Segoe UI",sans-serif; color: var(--text);
       background: radial-gradient(circle at 10% 10%, #1d4ed8 0%, transparent 40%), radial-gradient(circle at 90% 20%, #0f766e 0%, transparent 45%), linear-gradient(145deg, var(--bg-1), var(--bg-2));
       display: grid; place-items: center; padding: 20px;
     }
-    .panel { width: min(980px, 100%); background: linear-gradient(180deg, rgba(11,18,32,0.92), rgba(11,18,32,0.82)); border: 1px solid var(--card-border); border-radius: 18px; box-shadow: 0 20px 60px rgba(0,0,0,0.45); overflow: hidden; }
+    .panel { width: min(1120px, 100%); background: linear-gradient(180deg, rgba(11,18,32,0.92), rgba(11,18,32,0.82)); border: 1px solid var(--card-border); border-radius: 18px; box-shadow: 0 20px 60px rgba(0,0,0,0.45); overflow: hidden; }
     .head { padding: 22px 24px; border-bottom: 1px solid var(--card-border); display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
     .title { margin: 0; font-size: 1.45rem; }
     .sub { margin: 0; color: var(--muted); font-size: 0.92rem; }
@@ -130,16 +130,26 @@ def index() -> str:
     label { font-size: 0.82rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
     input, textarea { width: 100%; border-radius: 10px; border: 1px solid #334155; background: #0b1325; color: var(--text); padding: 10px 12px; font-size: 0.95rem; }
     textarea { min-height: 120px; resize: vertical; font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
-    .actions { display: flex; gap: 10px; padding: 0 24px 20px; flex-wrap: wrap; }
+    .actions { display: flex; gap: 10px; padding: 0 24px 14px; flex-wrap: wrap; }
     button { border: none; border-radius: 10px; padding: 11px 16px; font-size: 0.95rem; font-weight: 600; cursor: pointer; }
     .btn-primary { background: linear-gradient(90deg, var(--accent), #0ea5e9); color: #001018; }
     .btn-secondary { background: #1e293b; color: var(--text); border: 1px solid #334155; }
     .status { margin: 0 24px 12px; padding: 10px 12px; border-radius: 10px; background: #0f172a; border: 1px solid #334155; color: var(--muted); min-height: 42px; }
     .status.ok { border-color: #14532d; color: #bbf7d0; }
     .status.err { border-color: #7f1d1d; color: #fecaca; }
-    .output { margin: 0 24px 14px; border-radius: 12px; border: 1px solid #334155; background: #020817; padding: 14px; overflow: auto; min-height: 130px; white-space: pre-wrap; font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size: 0.86rem; line-height: 1.45; color: #cbd5e1; }
-    .artifacts { margin: 0 24px 24px; border-radius: 12px; border: 1px solid #334155; background: #020817; padding: 14px; min-height: 80px; }
+    .output { border-radius: 12px; border: 1px solid #334155; background: #020817; padding: 14px; overflow: auto; min-height: 180px; white-space: pre-wrap; font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size: 0.86rem; line-height: 1.45; color: #cbd5e1; margin: 0; }
+    .artifacts { border-radius: 12px; border: 1px solid #334155; background: #020817; padding: 14px; min-height: 180px; margin: 0; overflow: auto; }
     .artifacts a { color: #7dd3fc; text-decoration: none; margin-right: 12px; display: inline-block; margin-bottom: 8px; }
+    .cards { display:grid; grid-template-columns:1fr 1fr; gap:12px; padding: 0 24px 24px; }
+    @media (max-width: 980px) { .cards { grid-template-columns:1fr; } }
+    .card { border-radius:12px; border:1px solid #334155; background: var(--card); padding: 12px; }
+    .card h3 { margin:0 0 10px; font-size:0.86rem; text-transform:uppercase; letter-spacing:0.06em; color: var(--muted); }
+    .status-note { margin: 0 24px 10px; color: var(--muted); font-size: 0.82rem; }
+    .cards { display:grid; grid-template-columns:1fr 1fr; gap:12px; padding: 0 24px 24px; }
+    @media (max-width: 980px) { .cards { grid-template-columns:1fr; } }
+    .card { border-radius:12px; border:1px solid #334155; background: var(--card); padding: 12px; }
+    .card h3 { margin:0 0 10px; font-size:0.86rem; text-transform:uppercase; letter-spacing:0.06em; color: var(--muted); }
+    .status-note { margin: 0 24px 10px; color: var(--muted); font-size: 0.82rem; }
   </style>
 </head>
 <body>
@@ -182,9 +192,21 @@ def index() -> str:
     </section>
 
     <p class="status" id="status">Ready.</p>
-    <pre class="output" id="output">No job yet.</pre>
-    <div class="artifacts" id="artifacts">Artifacts will appear here after completion.</div>
-    <div class="artifacts" id="experiments">Comparison history will appear here.</div>
+    <p class="status-note">Suggested flow: Create Job -> Validate Job -> Train Eval -> Compare Runs</p>
+    <section class="cards">
+      <div class="card">
+        <h3>Run Output</h3>
+        <pre class="output" id="output">No job yet.</pre>
+      </div>
+      <div class="card">
+        <h3>Artifacts</h3>
+        <div class="artifacts" id="artifacts">Artifacts will appear here after completion.</div>
+      </div>
+      <div class="card" style="grid-column: 1 / -1;">
+        <h3>Experiment Comparison</h3>
+        <div class="artifacts" id="experiments">Comparison history will appear here.</div>
+      </div>
+    </section>
   </main>
 
   <script>
@@ -197,15 +219,17 @@ def index() -> str:
     const trainBtn = document.getElementById("trainBtn");
     const artBtn = document.getElementById("artBtn");
     const zipBtn = document.getElementById("zipBtn");
+    const cmpBtn = document.getElementById("cmpBtn");
     const artifactsEl = document.getElementById("artifacts");
+    const experimentsEl = document.getElementById("experiments");
 
     function setStatus(msg, kind = "") { statusEl.textContent = msg; statusEl.className = kind ? `status ${kind}` : "status"; }
     function getHeaders() { const h = {"Content-Type":"application/json"}; const k = document.getElementById("apiKey").value.trim(); if (k) h["x-api-key"] = k; return h; }
     function apiHeadersOnly() { const h = {}; const k = document.getElementById("apiKey").value.trim(); if (k) h["x-api-key"] = k; return h; }
 
     async function checkHealth() {
-      try { const res = await fetch("/healthz"); const data = await res.json(); healthEl.textContent = `Service: ${data.status}`; }
-      catch (_) { healthEl.textContent = "Service: unavailable"; }
+      try { const res = await fetch("/healthz"); const data = await res.json(); healthEl.textContent = `service=${data.status} | store=${data.artifact_store || "local"}`; }
+      catch (_) { healthEl.textContent = "service=unavailable"; }
     }
 
     function renderArtifacts(payload) {
@@ -359,8 +383,10 @@ def index() -> str:
     trainBtn.addEventListener("click", async () => { const jobId = document.getElementById("jobId").value.trim(); try { await trainEvalJob(jobId); } catch (e) { setStatus(`Request failed: ${e.message}`, "err"); } });
     artBtn.addEventListener("click", async () => { const jobId = document.getElementById("jobId").value.trim(); try { await loadArtifacts(jobId); } catch (e) { setStatus(`Request failed: ${e.message}`, "err"); } });
     zipBtn.addEventListener("click", async () => { const jobId = document.getElementById("jobId").value.trim(); try { await downloadZip(jobId); } catch (e) { setStatus(`Request failed: ${e.message}`, "err"); } });
+    cmpBtn.addEventListener("click", async () => { try { await loadExperiments(); } catch (e) { setStatus(`Request failed: ${e.message}`, "err"); } });
 
     checkHealth();
+    loadExperiments();
   </script>
 </body>
 </html>
@@ -602,6 +628,14 @@ def download_artifacts_zip(job_id: str, x_api_key: Optional[str] = Header(defaul
         media_type="application/zip",
         background=BackgroundTask(lambda: zip_path.exists() and zip_path.unlink()),
     )
+
+
+
+
+
+
+
+
 
 
 
