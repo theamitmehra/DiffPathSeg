@@ -328,7 +328,9 @@ def index() -> str:
         artifactsEl.textContent = "No artifacts found for this job yet.";
         return;
       }
-      const html = files.map((f) => `<a href="${f.url}" target="_blank" rel="noopener">${f.kind}: ${f.name}</a>`).join(" ");
+      const browserFiles = files.filter((f) => f.name.endsWith(".png"));
+      const chosen = browserFiles.length ? browserFiles : files;
+      const html = chosen.map((f) => `<a href="${f.url}" target="_blank" rel="noopener">${f.kind}: ${f.name}</a>`).join(" ");
       artifactsEl.innerHTML = html;
     }
 
@@ -544,15 +546,17 @@ def list_artifacts(job_id: str, x_api_key: Optional[str] = Header(default=None))
         d = root / kind
         if not d.exists():
             continue
-        for p in sorted(d.glob("*.pgm")):
-            files.append(
-                {
-                    "kind": kind,
-                    "name": p.name,
-                    "size_bytes": p.stat().st_size,
-                    "url": f"/v1/jobs/{job_id}/artifacts/{kind}/{p.name}",
-                }
-            )
+        for pattern in ["*.png", "*.pgm"]:
+            for p in sorted(d.glob(pattern)):
+                files.append(
+                    {
+                        "kind": kind,
+                        "name": p.name,
+                        "size_bytes": p.stat().st_size,
+                        "media_type": "image/png" if p.suffix.lower() == ".png" else "image/x-portable-graymap",
+                        "url": f"/v1/jobs/{job_id}/artifacts/{kind}/{p.name}",
+                    }
+                )
 
     return {"job_id": job_id, "count": len(files), "files": files}
 
@@ -574,4 +578,9 @@ def download_artifact(job_id: str, bucket: str, filename: str, x_api_key: Option
     if not path.exists():
         raise HTTPException(status_code=404, detail="artifact not found")
 
-    return FileResponse(path=str(path), filename=filename, media_type="image/x-portable-graymap")
+    suffix = path.suffix.lower()
+    media_type = "image/png" if suffix == ".png" else "image/x-portable-graymap"
+    return FileResponse(path=str(path), filename=filename, media_type=media_type)
+
+
+

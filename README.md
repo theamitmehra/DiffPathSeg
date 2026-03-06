@@ -37,7 +37,7 @@ Open UI:
 ## Artifacts in UI
 
 After a job completes, click `Load Artifacts` (or wait for auto-load).
-The UI will show clickable links for generated `.pgm` files from:
+The UI will show clickable links for generated `.png` previews (and `.pgm` originals) from:
 
 - `synthetic`
 - `curated`
@@ -73,3 +73,4 @@ pip install torch numpy pillow diffusers transformers accelerate safetensors
 ```
 
 Use `configs/ldm_torch.example.json` or send `config_override` in the UI/API.
+

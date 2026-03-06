@@ -5,7 +5,7 @@ from .config import AppConfig
 from .dataset import build_ellipse_mask, generate_normal_images, sample_longitudinal_specs
 from .generation import build_generator
 from .qc import QualityValidator
-from .utils import ensure_dirs, save_binary_mask, save_grayscale_image, write_json
+from .utils import ensure_dirs, save_binary_mask, save_binary_mask_png, save_grayscale_image, save_grayscale_png, write_json
 
 
 def run_pipeline(cfg: AppConfig, run_id: Optional[str] = None) -> Dict[str, float | str]:
@@ -50,14 +50,18 @@ def run_pipeline(cfg: AppConfig, run_id: Optional[str] = None) -> Dict[str, floa
 
         sample_id = f"sample_{idx:04d}"
         save_grayscale_image(synth, synthetic_dir / f"{sample_id}.pgm")
+        save_grayscale_png(synth, synthetic_dir / f"{sample_id}.png")
         save_binary_mask(mask, synthetic_dir / f"{sample_id}_mask.pgm")
+        save_binary_mask_png(mask, synthetic_dir / f"{sample_id}_mask.png")
 
         attempts += 1
         ious.append(qc.iou)
 
         if qc.accepted:
             save_grayscale_image(synth, curated_dir / f"{sample_id}.pgm")
+            save_grayscale_png(synth, curated_dir / f"{sample_id}.png")
             save_binary_mask(mask, curated_dir / f"{sample_id}_mask.pgm")
+            save_binary_mask_png(mask, curated_dir / f"{sample_id}_mask.png")
             accepted_count += 1
 
     mean_iou = sum(ious) / len(ious) if ious else 0.0
