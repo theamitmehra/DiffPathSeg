@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 
 from .config import AppConfig, config_to_dict, load_config, load_config_dict
+from .experiments import append_experiment, summarize_experiments
 from .pipeline import run_pipeline
 from .storage import ArtifactPersistenceError, persist_job_artifacts, refresh_remote_urls
 from .training import run_training_experiment
@@ -177,11 +178,13 @@ def index() -> str:
       <button class="btn-secondary" id="trainBtn">Train Eval</button>
       <button class="btn-secondary" id="artBtn">Load Artifacts</button>
       <button class="btn-secondary" id="zipBtn">Download ZIP</button>
+      <button class="btn-secondary" id="cmpBtn">Compare Runs</button>
     </section>
 
     <p class="status" id="status">Ready.</p>
     <pre class="output" id="output">No job yet.</pre>
     <div class="artifacts" id="artifacts">Artifacts will appear here after completion.</div>
+    <div class="artifacts" id="experiments">Comparison history will appear here.</div>
   </main>
 
   <script>
@@ -213,6 +216,37 @@ def index() -> str:
       artifactsEl.innerHTML = chosen.map((f) => `<a href="${f.url}" target="_blank" rel="noopener">${f.kind}: ${f.name}</a>`).join(" ");
     }
 
+
+    function renderExperiments(payload) {
+      const runs = payload.runs || [];
+      if (!runs.length) { experimentsEl.textContent = "No experiment history yet."; return; }
+      let html = '<table style="width:100%; border-collapse:collapse; font-size:0.82rem;">';
+      html += '<tr><th style="text-align:left; padding:6px;">Job</th><th style="text-align:right; padding:6px;">Dice Lift</th><th style="text-align:right; padding:6px;">IoU Lift</th><th style="text-align:right; padding:6px;">Pass Rate</th></tr>';
+      for (const run of runs) {
+        const job = (run.job_id || '').slice(0, 8);
+        const dl = Number(run.dice_lift || 0).toFixed(4);
+        const il = Number(run.iou_lift || 0).toFixed(4);
+        const pr = Number(run.validation_pass_rate || 0).toFixed(3);
+        html += `<tr><td style="padding:6px; border-top:1px solid #1f2a44;">${job}</td><td style="padding:6px; border-top:1px solid #1f2a44; text-align:right;">${dl}</td><td style="padding:6px; border-top:1px solid #1f2a44; text-align:right;">${il}</td><td style="padding:6px; border-top:1px solid #1f2a44; text-align:right;">${pr}</td></tr>`;
+      }
+      html += '</table>';
+      experimentsEl.innerHTML = html;
+    }
+
+    async function loadExperiments() {
+      const { res, payload } = await fetchJson('/v1/experiments');
+      if (!res.ok) {
+        setStatus(`Comparison fetch failed (${res.status}).`, 'err');
+        return;
+      }
+      renderExperiments(payload);
+      const best = payload.best_by_dice_lift || {};
+      if (best.job_id) {
+        setStatus(`Best run ${String(best.job_id).slice(0,8)} with Dice lift ${Number(best.dice_lift || 0).toFixed(4)}.`, 'ok');
+      } else {
+        setStatus('Comparison loaded.', 'ok');
+      }
+    }
     async function fetchJson(path) {
       const res = await fetch(path, { headers: apiHeadersOnly() });
       const text = await res.text();
@@ -481,7 +515,30 @@ def validate_job(job_id: str, x_api_key: Optional[str] = Header(default=None)) -
 def train_eval_job(job_id: str, x_api_key: Optional[str] = Header(default=None)) -> Dict[str, Any]:
     _assert_auth(x_api_key)
     root = _job_output_root(job_id)
-    return run_training_experiment(job_id=job_id, output_root=root)
+
+    train_eval = run_training_experiment(job_id=job_id, output_root=root)
+    validation = build_validation_report(job_id=job_id, output_root=root)
+
+    job = jobs.get(job_id)
+    metrics = job.metrics if job and job.metrics else {}
+    record = {
+        "job_id": job_id,
+        "dice_lift": float(train_eval.get("lift", {}).get("dice", 0.0)),
+        "iou_lift": float(train_eval.get("lift", {}).get("iou", 0.0)),
+        "baseline_dice": float(train_eval.get("baseline", {}).get("dice", 0.0)),
+        "augmented_dice": float(train_eval.get("augmented", {}).get("dice", 0.0)),
+        "validation_pass_rate": float(validation.get("summary", {}).get("pass_rate", 0.0)),
+        "acceptance_rate": float(metrics.get("acceptance_rate", 0.0)) if metrics else 0.0,
+        "generator_backend": metrics.get("generator_backend", "") if metrics else "",
+        "qc_backend": metrics.get("qc_backend", "") if metrics else "",
+        "recorded_at": time.time(),
+    }
+    append_experiment(record)
+
+    out = dict(train_eval)
+    out["validation_summary"] = validation.get("summary", {})
+    out["recorded"] = record
+    return out
 
 
 @app.get("/v1/jobs/{job_id}/artifacts")
@@ -545,3 +602,13 @@ def download_artifacts_zip(job_id: str, x_api_key: Optional[str] = Header(defaul
         media_type="application/zip",
         background=BackgroundTask(lambda: zip_path.exists() and zip_path.unlink()),
     )
+
+
+
+
+
+
+
+
+
+

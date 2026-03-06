@@ -11,6 +11,7 @@ This project ships as a deployable API + browser UI.
   - `GET /v1/jobs/{job_id}`
   - `GET /v1/jobs/{job_id}/validation`
   - `GET /v1/jobs/{job_id}/train_eval`
+  - `GET /v1/experiments`
   - `GET /v1/jobs/{job_id}/artifacts`
   - `GET /v1/jobs/{job_id}/artifacts/{bucket}/{filename}`
   - `GET /v1/jobs/{job_id}/artifacts.zip`
@@ -44,6 +45,7 @@ After a job completes:
 
 - `Validate Job`: QC report
 - `Train Eval`: baseline-vs-augmented Dice/IoU
+- `Compare Runs`: recent experiment history with best Dice lift
 - `Load Artifacts`: image links (`.png` and `.pgm`)
 - `Download ZIP`: one-click export of all local artifacts
 
@@ -76,6 +78,7 @@ Environment variables:
 - `APP_DEFAULT_CONFIG` (default `configs/default.json`)
 - `MAX_CONCURRENT_JOBS`
 - `LOG_LEVEL`
+- `EXPERIMENTS_LOG_PATH` (optional; default `outputs/experiments.jsonl`)
 - S3 variables above (optional)
 
 ## Important Free-Tier Limits
