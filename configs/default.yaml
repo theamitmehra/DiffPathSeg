@@ -1,0 +1,21 @@
+﻿seed: 42
+backend: mock
+output_dir: outputs
+image_size: 256
+num_normal_images: 40
+num_generate_attempts: 120
+max_curated_samples: 80
+batch_size: 8
+quality_thresholds:
+  min_iou: 0.55
+  min_area_ratio: 0.003
+  max_area_ratio: 0.22
+longitudinal:
+  enable: true
+  timesteps: 4
+  severity_min: 0.15
+  severity_max: 0.85
+text_prompts:
+  - "small peripheral lung nodule"
+  - "focal liver lesion with irregular border"
+  - "subtle white matter hyperintensity"
