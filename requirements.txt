@@ -1,5 +1,6 @@
 ﻿fastapi==0.115.8
 uvicorn[standard]==0.34.0
+boto3==1.36.26
 
 # Optional for LDM generator and torch QC backend
 # torch>=2.2

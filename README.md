@@ -16,6 +16,7 @@ This project ships as a deployable API + browser UI.
 - Background job execution with bounded concurrency.
 - Per-job isolated output directories (`outputs/<job_id>/...`).
 - Optional API key protection (`APP_API_KEY` via `x-api-key`).
+- Optional durable artifact persistence to S3.
 - Dockerized runtime for cloud deployment.
 
 ## Local Run
@@ -36,13 +37,27 @@ Open UI:
 
 - `http://localhost:8000/`
 
-## Validation and Artifacts
+## Workflow In UI
 
-After a job completes, click `Validate Job` for QC, `Train Eval` for baseline-vs-augmented Dice/IoU, then `Load Artifacts` to browse files.
-The UI shows clickable links for generated `.png` previews (and `.pgm` originals) from:
+After a job completes:
 
-- `synthetic`
-- `curated`
+- `Validate Job`: QC report
+- `Train Eval`: baseline-vs-augmented Dice/IoU
+- `Load Artifacts`: image links (`.png` and `.pgm`)
+
+## Durable Storage (S3)
+
+By default, artifacts are local (`ARTIFACT_STORE=local`).
+To persist artifacts after Render restarts, set these env vars:
+
+- `ARTIFACT_STORE=s3`
+- `S3_BUCKET=<your-bucket>`
+- `S3_REGION=<aws-region>`
+- `S3_PREFIX=diffpathseg` (optional)
+- `S3_PRESIGN_EXPIRY_SECONDS=3600` (optional)
+- `S3_PUBLIC_BASE_URL=https://<bucket-host>` (optional; if set, uses direct URLs)
+
+When S3 is enabled, `/v1/jobs/{job_id}/artifacts` returns remote URLs.
 
 ## Free Deployment (Render)
 
@@ -59,12 +74,12 @@ Environment variables:
 - `APP_DEFAULT_CONFIG` (default `configs/default.json`)
 - `MAX_CONCURRENT_JOBS`
 - `LOG_LEVEL`
+- S3 variables above (optional)
 
 ## Important Free-Tier Limits
 
 - Free instances can sleep and cold-start.
-- Disk is ephemeral; outputs are not durable long-term.
-- For durable production use object storage (S3/GCS) and always-on compute.
+- Local disk is ephemeral; use S3 mode for durable artifacts.
 
 ## Optional Advanced Backends
 
@@ -75,4 +90,3 @@ pip install torch numpy pillow diffusers transformers accelerate safetensors
 ```
 
 Use `configs/ldm_torch.example.json` or send `config_override` in the UI/API.
-
