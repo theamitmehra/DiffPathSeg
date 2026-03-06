@@ -1,16 +1,17 @@
 ﻿# Diffusion-Augmented Segmentation for Rare Medical Pathologies
 
-This project now ships as a deployable API service with asynchronous job execution.
+This project ships as a deployable API + browser UI.
 
 ## What Is Productionized
 
-- API server with FastAPI endpoints:
+- FastAPI service endpoints:
+  - `GET /` (web dashboard)
   - `GET /healthz`
   - `POST /v1/jobs`
   - `GET /v1/jobs/{job_id}`
 - Background job execution with bounded concurrency.
 - Per-job isolated output directories (`outputs/<job_id>/...`).
-- API key support (`APP_API_KEY` via `x-api-key` header).
+- Optional API key protection (`APP_API_KEY` via `x-api-key`).
 - Dockerized runtime for cloud deployment.
 
 ## Local Run
@@ -21,53 +22,41 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-Run API server:
+Start server:
 
 ```bash
 python -m app.main serve --host 0.0.0.0 --port 8000
 ```
 
-Health check:
+Open UI:
 
-```bash
-curl http://localhost:8000/healthz
-```
+- `http://localhost:8000/`
 
-Create job:
+Health endpoint:
 
-```bash
-curl -X POST http://localhost:8000/v1/jobs \
-  -H "Content-Type: application/json" \
-  -d "{}"
-```
-
-Get job status:
-
-```bash
-curl http://localhost:8000/v1/jobs/<job_id>
-```
+- `http://localhost:8000/healthz`
 
 ## Free Deployment (Render)
 
-This repo includes `render.yaml` and `Dockerfile` for one-click deployment from GitHub.
+This repo includes `render.yaml` and `Dockerfile`.
 
 1. Push latest code to GitHub.
-2. In Render, create a new Blueprint and select this repository.
-3. Render picks `render.yaml` and deploys `diffpathseg-api`.
-4. After deploy, call `<render-url>/healthz`.
+2. In Render, create a Blueprint from this repo.
+3. Render deploys `diffpathseg-api`.
+4. Open `<render-url>/` for UI and `<render-url>/healthz` for health.
 
-Environment variables you can set:
+Environment variables:
 
-- `APP_API_KEY`: protect API endpoints.
-- `APP_DEFAULT_CONFIG`: default config path (default `configs/default.json`).
-- `MAX_CONCURRENT_JOBS`: worker slot count.
-- `LOG_LEVEL`: logging level.
+- `APP_API_KEY`
+- `APP_DEFAULT_CONFIG` (default `configs/default.json`)
+- `MAX_CONCURRENT_JOBS`
+- `LOG_LEVEL`
 
 ## Important Free-Tier Limits
 
-- Free instances can sleep and have cold starts.
-- Ephemeral disk means generated outputs may not persist long-term.
-- For durable production, use object storage (S3/GCS) and a paid always-on plan.
+- Free instances can sleep and cold-start.
+- Disk is ephemeral; outputs are not durable long-term.
+- For durable production use object storage (S3/GCS) and always-on compute.
 
 ## Optional Advanced Backends
 
@@ -77,4 +66,4 @@ To use diffusion (`backend=ldm`) and torch QC (`qc.backend=torch`), install:
 pip install torch numpy pillow diffusers transformers accelerate safetensors
 ```
 
-Then run with `configs/ldm_torch.example.json` or pass override in the job request.
+Use `configs/ldm_torch.example.json` or send `config_override` in the UI/API.

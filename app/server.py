@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from .config import AppConfig, config_to_dict, load_config, load_config_dict
@@ -92,10 +93,317 @@ def _deep_merge(base: Dict[str, Any], patch: Dict[str, Any]) -> Dict[str, Any]:
     return merged
 
 
-app = FastAPI(title="DiffPathSeg API", version="1.0.0")
+app = FastAPI(title="DiffPathSeg API", version="1.1.0")
 jobs = JobStore()
 _max_concurrent_jobs = max(1, int(os.getenv("MAX_CONCURRENT_JOBS", "2")))
 _worker_semaphore = threading.BoundedSemaphore(_max_concurrent_jobs)
+
+
+@app.get("/", response_class=HTMLResponse)
+def index() -> str:
+    return """
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DiffPathSeg Console</title>
+  <style>
+    :root {
+      --bg-1: #0f172a;
+      --bg-2: #1e293b;
+      --card: #0b1220;
+      --card-border: #1f2a44;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #22d3ee;
+      --accent-2: #10b981;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at 10% 10%, #1d4ed8 0%, transparent 40%),
+                  radial-gradient(circle at 90% 20%, #0f766e 0%, transparent 45%),
+                  linear-gradient(145deg, var(--bg-1), var(--bg-2));
+      display: grid;
+      place-items: center;
+      padding: 20px;
+    }
+    .panel {
+      width: min(920px, 100%);
+      background: linear-gradient(180deg, rgba(11,18,32,0.92), rgba(11,18,32,0.82));
+      border: 1px solid var(--card-border);
+      border-radius: 18px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+      overflow: hidden;
+    }
+    .head {
+      padding: 22px 24px;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+    }
+    .title {
+      margin: 0;
+      font-size: 1.45rem;
+      letter-spacing: 0.02em;
+    }
+    .sub {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      padding: 20px 24px;
+    }
+    @media (max-width: 780px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+    .group { display: flex; flex-direction: column; gap: 6px; }
+    label {
+      font-size: 0.82rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    input, textarea {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid #334155;
+      background: #0b1325;
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 0.95rem;
+    }
+    textarea {
+      min-height: 130px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      padding: 0 24px 20px;
+      flex-wrap: wrap;
+    }
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 11px 16px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 120ms ease, box-shadow 120ms ease;
+    }
+    button:hover { transform: translateY(-1px); }
+    .btn-primary {
+      background: linear-gradient(90deg, var(--accent), #0ea5e9);
+      color: #001018;
+      box-shadow: 0 8px 20px rgba(34,211,238,0.25);
+    }
+    .btn-secondary {
+      background: #1e293b;
+      color: var(--text);
+      border: 1px solid #334155;
+    }
+    .status {
+      margin: 0 24px 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      color: var(--muted);
+      min-height: 42px;
+    }
+    .status.ok { border-color: #14532d; color: #bbf7d0; }
+    .status.err { border-color: #7f1d1d; color: #fecaca; }
+    .output {
+      margin: 0 24px 24px;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      background: #020817;
+      padding: 14px;
+      overflow: auto;
+      min-height: 150px;
+      white-space: pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.86rem;
+      line-height: 1.45;
+      color: #cbd5e1;
+    }
+  </style>
+</head>
+<body>
+  <main class="panel">
+    <section class="head">
+      <div>
+        <h1 class="title">DiffPathSeg Console</h1>
+        <p class="sub">Run synthetic generation jobs and monitor status</p>
+      </div>
+      <p class="sub" id="health">Checking health...</p>
+    </section>
+
+    <section class="grid">
+      <div class="group">
+        <label for="configPath">Config Path</label>
+        <input id="configPath" value="configs/default.json" />
+      </div>
+      <div class="group">
+        <label for="apiKey">API Key (Optional)</label>
+        <input id="apiKey" type="password" placeholder="x-api-key header" />
+      </div>
+      <div class="group" style="grid-column: 1 / -1;">
+        <label for="override">Config Override JSON (Optional)</label>
+        <textarea id="override" placeholder='{"num_generate_attempts": 40, "max_curated_samples": 20}'></textarea>
+      </div>
+      <div class="group" style="grid-column: 1 / -1;">
+        <label for="jobId">Track Existing Job ID (Optional)</label>
+        <input id="jobId" placeholder="Paste job_id to fetch status" />
+      </div>
+    </section>
+
+    <section class="actions">
+      <button class="btn-primary" id="runBtn">Create Job</button>
+      <button class="btn-secondary" id="checkBtn">Check Job</button>
+    </section>
+
+    <p class="status" id="status">Ready.</p>
+    <pre class="output" id="output">No job yet.</pre>
+  </main>
+
+  <script>
+    const statusEl = document.getElementById("status");
+    const outputEl = document.getElementById("output");
+    const healthEl = document.getElementById("health");
+    const runBtn = document.getElementById("runBtn");
+    const checkBtn = document.getElementById("checkBtn");
+
+    function setStatus(msg, kind = "") {
+      statusEl.textContent = msg;
+      statusEl.className = kind ? `status ${kind}` : "status";
+    }
+
+    function getHeaders() {
+      const headers = { "Content-Type": "application/json" };
+      const apiKey = document.getElementById("apiKey").value.trim();
+      if (apiKey) headers["x-api-key"] = apiKey;
+      return headers;
+    }
+
+    async function checkHealth() {
+      try {
+        const res = await fetch("/healthz");
+        if (!res.ok) throw new Error("health endpoint failed");
+        const data = await res.json();
+        healthEl.textContent = `Service: ${data.status}`;
+      } catch (e) {
+        healthEl.textContent = "Service: unavailable";
+      }
+    }
+
+    async function fetchJob(jobId, silent = false) {
+      if (!jobId) {
+        if (!silent) setStatus("Enter a job_id first.", "err");
+        return;
+      }
+
+      const res = await fetch(`/v1/jobs/${jobId}`, { headers: getHeaders() });
+      const text = await res.text();
+      let payload = {};
+      try { payload = JSON.parse(text); } catch { payload = { raw: text }; }
+
+      if (!res.ok) {
+        setStatus(`Job lookup failed (${res.status}).`, "err");
+        outputEl.textContent = JSON.stringify(payload, null, 2);
+        return;
+      }
+
+      outputEl.textContent = JSON.stringify(payload, null, 2);
+      setStatus(`Job ${payload.job_id} is ${payload.status}.`, payload.status === "failed" ? "err" : "ok");
+      return payload;
+    }
+
+    async function createJob() {
+      runBtn.disabled = true;
+      setStatus("Creating job...", "");
+
+      let override = {};
+      const rawOverride = document.getElementById("override").value.trim();
+      if (rawOverride) {
+        try {
+          override = JSON.parse(rawOverride);
+        } catch (e) {
+          setStatus("Override JSON is invalid.", "err");
+          runBtn.disabled = false;
+          return;
+        }
+      }
+
+      const payload = {
+        config_path: document.getElementById("configPath").value.trim() || null,
+        config_override: override,
+      };
+
+      try {
+        const res = await fetch("/v1/jobs", {
+          method: "POST",
+          headers: getHeaders(),
+          body: JSON.stringify(payload),
+        });
+
+        const text = await res.text();
+        let data = {};
+        try { data = JSON.parse(text); } catch { data = { raw: text }; }
+
+        if (!res.ok) {
+          setStatus(`Job creation failed (${res.status}).`, "err");
+          outputEl.textContent = JSON.stringify(data, null, 2);
+          return;
+        }
+
+        const jobId = data.job_id;
+        document.getElementById("jobId").value = jobId;
+        setStatus(`Job ${jobId} queued. Polling status...`, "ok");
+        outputEl.textContent = JSON.stringify(data, null, 2);
+
+        const timer = setInterval(async () => {
+          const job = await fetchJob(jobId, true);
+          if (!job) return;
+          if (job.status === "completed" || job.status === "failed") {
+            clearInterval(timer);
+          }
+        }, 2500);
+      } catch (e) {
+        setStatus(`Request failed: ${e.message}`, "err");
+      } finally {
+        runBtn.disabled = false;
+      }
+    }
+
+    runBtn.addEventListener("click", createJob);
+    checkBtn.addEventListener("click", async () => {
+      const jobId = document.getElementById("jobId").value.trim();
+      try {
+        await fetchJob(jobId);
+      } catch (e) {
+        setStatus(`Request failed: ${e.message}`, "err");
+      }
+    });
+
+    checkHealth();
+  </script>
+</body>
+</html>
+"""
 
 
 @app.get("/healthz")
