@@ -1,4 +1,4 @@
-﻿import copy
+import copy
 import logging
 import os
 import threading
@@ -102,6 +102,15 @@ jobs = JobStore()
 _max_concurrent_jobs = max(1, int(os.getenv("MAX_CONCURRENT_JOBS", "2")))
 _worker_semaphore = threading.BoundedSemaphore(_max_concurrent_jobs)
 
+_favicon_path = Path(__file__).resolve().parent / "static" / "favicon.svg"
+
+
+@app.get("/favicon.svg", include_in_schema=False)
+def favicon_svg() -> FileResponse:
+    if _favicon_path.exists():
+        return FileResponse(path=str(_favicon_path), media_type="image/svg+xml")
+    raise HTTPException(status_code=404, detail="favicon not found")
+
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
@@ -112,6 +121,7 @@ def index() -> str:
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>DiffPathSeg Console</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <style>
     :root { --bg-1:#0f172a; --bg-2:#1e293b; --card-border:#1f2a44; --text:#e2e8f0; --muted:#94a3b8; --accent:#22d3ee; --card:#020817; }
     * { box-sizing: border-box; }
@@ -634,6 +644,8 @@ def download_artifacts_zip(job_id: str, x_api_key: Optional[str] = Header(defaul
         media_type="application/zip",
         background=BackgroundTask(lambda: zip_path.exists() and zip_path.unlink()),
     )
+
+
 
 
 

@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" role="img" aria-label="DiffPathSeg Console cover">
+  <defs>
+    <radialGradient id="bg1" cx="10%" cy="15%" r="60%">
+      <stop offset="0" stop-color="#1d4ed8" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#1d4ed8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="bg2" cx="88%" cy="15%" r="60%">
+      <stop offset="0" stop-color="#0f766e" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#0f766e" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#0b1220" stop-opacity="0.85"/>
+    </linearGradient>
+    <linearGradient id="btn" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#0ea5e9"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="640" fill="#0f172a"/>
+  <rect width="1280" height="640" fill="url(#bg1)"/>
+  <rect width="1280" height="640" fill="url(#bg2)"/>
+
+  <rect x="120" y="55" width="1040" height="530" rx="20" fill="url(#panel)" stroke="#1f2a44"/>
+  <line x1="120" y1="150" x2="1160" y2="150" stroke="#1f2a44"/>
+
+  <text x="155" y="110" fill="#e2e8f0" font-size="52" font-family="Segoe UI, Arial, sans-serif" font-weight="700">DiffPathSeg Console</text>
+  <text x="155" y="138" fill="#94a3b8" font-size="24" font-family="Segoe UI, Arial, sans-serif">Run jobs, validate data, train/eval, and fetch artifacts</text>
+  <text x="950" y="110" fill="#94a3b8" font-size="24" font-family="Segoe UI, Arial, sans-serif">service=ok | store=local</text>
+
+  <rect x="155" y="175" width="470" height="56" rx="10" fill="#0b1325" stroke="#334155"/>
+  <rect x="645" y="175" width="470" height="56" rx="10" fill="#0b1325" stroke="#334155"/>
+  <text x="170" y="210" fill="#e2e8f0" font-size="30" font-family="Segoe UI, Arial, sans-serif">configs/default.json</text>
+  <text x="660" y="210" fill="#64748b" font-size="30" font-family="Segoe UI, Arial, sans-serif">x-api-key header</text>
+
+  <rect x="155" y="250" width="960" height="115" rx="10" fill="#0b1325" stroke="#334155"/>
+  <text x="170" y="305" fill="#64748b" font-size="28" font-family="Consolas, monospace">{&quot;num_generate_attempts&quot;: 40, &quot;max_curated_samples&quot;: 20}</text>
+
+  <rect x="155" y="385" width="170" height="50" rx="12" fill="url(#btn)"/>
+  <text x="182" y="418" fill="#001018" font-size="30" font-family="Segoe UI, Arial, sans-serif" font-weight="700">Create Job</text>
+
+  <rect x="155" y="450" width="960" height="52" rx="10" fill="#0f172a" stroke="#14532d"/>
+  <text x="170" y="484" fill="#bbf7d0" font-size="32" font-family="Segoe UI, Arial, sans-serif">Comparison loaded.</text>
+</svg>
