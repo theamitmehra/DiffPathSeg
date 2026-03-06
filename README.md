@@ -9,6 +9,7 @@ This project ships as a deployable API + browser UI.
   - `GET /healthz`
   - `POST /v1/jobs`
   - `GET /v1/jobs/{job_id}`
+  - `GET /v1/jobs/{job_id}/validation`
   - `GET /v1/jobs/{job_id}/artifacts`
   - `GET /v1/jobs/{job_id}/artifacts/{bucket}/{filename}`
 - Background job execution with bounded concurrency.
@@ -34,10 +35,10 @@ Open UI:
 
 - `http://localhost:8000/`
 
-## Artifacts in UI
+## Validation and Artifacts
 
-After a job completes, click `Load Artifacts` (or wait for auto-load).
-The UI will show clickable links for generated `.png` previews (and `.pgm` originals) from:
+After a job completes, click `Validate Job` to generate a QC report, then `Load Artifacts` to browse files.
+The UI shows clickable links for generated `.png` previews (and `.pgm` originals) from:
 
 - `synthetic`
 - `curated`
@@ -73,4 +74,3 @@ pip install torch numpy pillow diffusers transformers accelerate safetensors
 ```
 
 Use `configs/ldm_torch.example.json` or send `config_override` in the UI/API.
-

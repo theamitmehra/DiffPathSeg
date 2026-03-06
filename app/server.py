@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from .config import AppConfig, config_to_dict, load_config, load_config_dict
 from .pipeline import run_pipeline
+from .validation import build_validation_report
 
 
 def _setup_logging() -> None:
@@ -275,6 +276,7 @@ def index() -> str:
     <section class="actions">
       <button class="btn-primary" id="runBtn">Create Job</button>
       <button class="btn-secondary" id="checkBtn">Check Job</button>
+      <button class="btn-secondary" id="valBtn">Validate Job</button>
       <button class="btn-secondary" id="artBtn">Load Artifacts</button>
     </section>
 
@@ -289,6 +291,7 @@ def index() -> str:
     const healthEl = document.getElementById("health");
     const runBtn = document.getElementById("runBtn");
     const checkBtn = document.getElementById("checkBtn");
+    const valBtn = document.getElementById("valBtn");
     const artBtn = document.getElementById("artBtn");
     const artifactsEl = document.getElementById("artifacts");
 
@@ -353,6 +356,28 @@ def index() -> str:
       setStatus(`Artifacts loaded for ${jobId}.`, "ok");
     }
 
+
+    async function validateJob(jobId) {
+      if (!jobId) {
+        setStatus("Enter a job_id first.", "err");
+        return;
+      }
+      const res = await fetch(`/v1/jobs/${jobId}/validation`, { headers: apiHeadersOnly() });
+      const text = await res.text();
+      let payload = {};
+      try { payload = JSON.parse(text); } catch { payload = { raw: text }; }
+
+      if (!res.ok) {
+        setStatus(`Validation failed (${res.status}).`, "err");
+        outputEl.textContent = JSON.stringify(payload, null, 2);
+        return;
+      }
+
+      outputEl.textContent = JSON.stringify(payload, null, 2);
+      const invalid = payload.summary ? payload.summary.invalid_samples : 0;
+      const kind = invalid > 0 ? "err" : "ok";
+      setStatus(`Validation complete for ${jobId}. invalid=${invalid}`, kind);
+    }
     async function fetchJob(jobId, silent = false) {
       if (!jobId) {
         if (!silent) setStatus("Enter a job_id first.", "err");
@@ -440,6 +465,10 @@ def index() -> str:
     checkBtn.addEventListener("click", async () => {
       const jobId = document.getElementById("jobId").value.trim();
       try { await fetchJob(jobId); } catch (e) { setStatus(`Request failed: ${e.message}`, "err"); }
+    });
+    valBtn.addEventListener("click", async () => {
+      const jobId = document.getElementById("jobId").value.trim();
+      try { await validateJob(jobId); } catch (e) { setStatus(`Request failed: ${e.message}`, "err"); }
     });
     artBtn.addEventListener("click", async () => {
       const jobId = document.getElementById("jobId").value.trim();
@@ -536,6 +565,13 @@ def get_job(job_id: str, x_api_key: Optional[str] = Header(default=None)) -> Job
     )
 
 
+
+@app.get("/v1/jobs/{job_id}/validation")
+def validate_job(job_id: str, x_api_key: Optional[str] = Header(default=None)) -> Dict[str, Any]:
+    _assert_auth(x_api_key)
+
+    root = _job_output_root(job_id)
+    return build_validation_report(job_id=job_id, output_root=root)
 @app.get("/v1/jobs/{job_id}/artifacts")
 def list_artifacts(job_id: str, x_api_key: Optional[str] = Header(default=None)) -> Dict[str, Any]:
     _assert_auth(x_api_key)
@@ -581,6 +617,17 @@ def download_artifact(job_id: str, bucket: str, filename: str, x_api_key: Option
     suffix = path.suffix.lower()
     media_type = "image/png" if suffix == ".png" else "image/x-portable-graymap"
     return FileResponse(path=str(path), filename=filename, media_type=media_type)
+
+
+
+
+
+
+
+
+
+
+
 
 
 
